@@ -8,7 +8,7 @@ const orderRoutes = require('./routes/orderRoutes');
 const cors = require('cors');
 require('dotenv').config();
 const app = express();
-app.use(cors());
+app.use(cors({ origin: '*' }));
 const PORT = process.env.PORT;
 // Middleware
 app.use('/uploads', express.static('uploads'));
@@ -20,6 +20,9 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/bulk-orders', bulkOrderRoutes);
 app.use('/api/orders', orderRoutes);
 // Start server
+app.get("/", (req, res) => {
+  res.send("Server running 🚀");
+});
 app.listen(PORT, () => {
     console.log(`Server running on http://localhost:${PORT}`);
 });
