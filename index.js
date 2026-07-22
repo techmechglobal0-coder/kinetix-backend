@@ -2,17 +2,16 @@ const express = require('express');
 const path = require('path');
 require('dotenv').config();
 const app = express();
+const PORT = process.env.PORT || 5000;
 
-// ─── 1. MANUAL CORS MIDDLEWARE ──────────────────────────
+// ─── 1. CORS MIDDLEWARE (Manual – no external package needed) ──
 app.use((req, res, next) => {
   const allowedOrigins = ['https://kinetixpk.com', 'http://localhost:3000'];
   const origin = req.headers.origin;
   
-  // Set CORS headers dynamically
   if (allowedOrigins.includes(origin)) {
     res.header('Access-Control-Allow-Origin', origin);
   } else if (!origin) {
-    // Allow requests with no origin (curl, Postman, mobile apps)
     res.header('Access-Control-Allow-Origin', '*');
   }
   
@@ -20,7 +19,6 @@ app.use((req, res, next) => {
   res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, PATCH, DELETE, OPTIONS');
   res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
   
-  // Handle preflight OPTIONS requests
   if (req.method === 'OPTIONS') {
     return res.sendStatus(200);
   }
@@ -62,13 +60,7 @@ app.use((err, req, res, next) => {
   res.status(500).json({ message: 'Internal server error' });
 });
 
-// ─── 6. EXPORT FOR VERCEL (NO app.listen) ────────────
-module.exports = app;
-
-// ─── 7. LOCAL DEVELOPMENT ONLY ──────────────────────
-if (process.env.NODE_ENV !== 'production') {
-  const PORT = process.env.PORT || 5000;
-  app.listen(PORT, () => {
-    console.log(`✅ Server running locally on http://localhost:${PORT}`);
-  });
-}
+// ─── 6. START SERVER ──────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`✅ Server running on http://localhost:${PORT}`);
+});
