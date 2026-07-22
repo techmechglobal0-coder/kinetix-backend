@@ -9,6 +9,7 @@ const pool = mysql.createPool({
     database: process.env.DB_NAME,
     waitForConnections: true,
     connectionLimit: 10,
+    port: process.env.DB_PORT || 3306,
     queueLimit: 0
 });
 // Test the connection
@@ -18,7 +19,7 @@ const pool = mysql.createPool({
         console.log('Connected to MySQL database!');
         connection.release();
     } catch (err) {
-        console.error('Database connection failed:', err.message);
+        console.error('Database connection failed:', err);
     }
 })();
 
