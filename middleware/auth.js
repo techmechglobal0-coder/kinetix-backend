@@ -7,6 +7,12 @@ const authenticateToken = (req, res, next) => {
     const authHeader = req.headers['authorization'];
     const token = authHeader && authHeader.split(' ')[1]; // Format: "Bearer <token>"
 
+    // Allow GET requests without token
+    if (req.method === 'GET' && !token) {
+        return next();
+    }
+
+    // If token is missing for non-GET requests
     if (!token) {
         return res.status(401).json({ message: 'Access denied. No token provided.' });
     }
