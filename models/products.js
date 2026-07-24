@@ -1,6 +1,14 @@
 const pool = require('../db');
 
 class ProductModel {
+    // Helper to normalize in_stock to 'yes' or 'no'
+    static normalizeInStock(value) {
+        // Accepts boolean, 'true'/'false', 'yes'/'no', 1/0
+        if (value === 'yes' || value === 'no') return value;
+        if (value === true || value === 'true' || value === 1) return 'yes';
+        return 'no'; // default
+    }
+
     // Create new product
     static async create(productData) {
         const {
@@ -14,6 +22,8 @@ class ProductModel {
             tags
         } = productData;
 
+        const normalizedInStock = this.normalizeInStock(in_stock);
+
         const [result] = await pool.query(
             `INSERT INTO products 
             (category_id, title, price, description, technical_description, in_stock, images, tags) 
@@ -24,7 +34,7 @@ class ProductModel {
                 price,
                 description || null,
                 technical_description || null,
-                in_stock || 'yes',
+                normalizedInStock,
                 images ? JSON.stringify(images) : null,
                 tags ? JSON.stringify(tags) : null
             ]
@@ -40,7 +50,6 @@ class ProductModel {
              LEFT JOIN categories c ON p.category_id = c.id 
              ORDER BY p.id DESC`
         );
-        // Parse JSON fields for each row
         return rows.map(row => ({
             ...row,
             images: row.images ? JSON.parse(row.images) : [],
@@ -79,6 +88,8 @@ class ProductModel {
             tags
         } = productData;
 
+        const normalizedInStock = in_stock !== undefined ? this.normalizeInStock(in_stock) : undefined;
+
         await pool.query(
             `UPDATE products SET 
                 category_id = COALESCE(?, category_id),
@@ -96,7 +107,7 @@ class ProductModel {
                 price,
                 description,
                 technical_description,
-                in_stock,
+                normalizedInStock,
                 images ? JSON.stringify(images) : null,
                 tags ? JSON.stringify(tags) : null,
                 id
@@ -107,7 +118,6 @@ class ProductModel {
 
     // Delete product (and its associated images from disk)
     static async delete(id) {
-        // First get product to delete images
         const product = await this.findById(id);
         if (product && product.images && product.images.length) {
             const fs = require('fs');
