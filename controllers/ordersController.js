@@ -1,10 +1,10 @@
 const OrderModel = require('../models/orderModel');
-
+const { sendOrderConfirmation } = require('../config/email'); // adjust path
 const OrderController = {
     // CREATE
     async createOrder(req, res) {
         try {
-            const { name, address, phone, city, postal_code, items } = req.body;
+            const { name, address, phone, city, postal_code, email, items } = req.body; // ✅ added email
             let orderItems;
             try {
                 orderItems = typeof items === 'string' ? JSON.parse(items) : items;
@@ -15,11 +15,15 @@ const OrderController = {
             const paymentPath = req.file ? req.file.path : null;
 
             const orderId = await OrderModel.createOrder(
-                { name, address, phone, city, postal_code },
+                { name, address, phone, city, postal_code, email }, // ✅ pass email
                 orderItems,
                 paymentPath
             );
-
+            // Fetch the full order with items to send email
+            const fullOrder = await OrderModel.getOrderById(orderId); // you need this method
+            sendOrderConfirmation(fullOrder, fullOrder.items).catch(err =>
+                console.error('Background email error:', err)
+            );
             res.status(201).json({ message: 'Order created', orderId });
         } catch (err) {
             console.error(err);

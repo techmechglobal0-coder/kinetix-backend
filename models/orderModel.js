@@ -7,18 +7,19 @@ const OrderModel = {
         try {
             await connection.beginTransaction();
 
-            const { name, address, phone, city, postal_code } = orderData;
+            const { name, address, phone, city, postal_code, email } = orderData; // ✅ added email
             const [orderResult] = await connection.query(
-                `INSERT INTO orders (name, address, phone, city, postal_code, payment_screen_short, order_complete)
-                 VALUES (?, ?, ?, ?, ?, ?, ?)`,
-                [name, address, phone, city, postal_code, paymentPath, 0]
+                `INSERT INTO orders 
+            (name, address, phone, city, postal_code, email, payment_screen_short, order_complete)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+                [name, address, phone, city, postal_code, email, paymentPath, 0]
             );
             const orderId = orderResult.insertId;
 
             for (const item of items) {
                 await connection.query(
                     `INSERT INTO order_items (order_id, product_name, quantity, unit_price)
-                     VALUES (?, ?, ?, ?)`,
+                 VALUES (?, ?, ?, ?)`,
                     [orderId, item.product_name, item.quantity, item.unit_price]
                 );
             }
@@ -75,7 +76,7 @@ const OrderModel = {
     // Mark order as complete
     async completeOrder(orderId) {
         const [result] = await db.query(
-            `UPDATE orders SET order_complete = 1, completed_at = NOW() WHERE id = ? AND order_complete = 0`,
+            `UPDATE orders SET order_complete = 1 WHERE id = ?`,
             [orderId]
         );
         return result.affectedRows > 0;
