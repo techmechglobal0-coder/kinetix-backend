@@ -32,7 +32,9 @@ const sendOrderConfirmation = async (order, items) => {
     `).join('');
 
     const subtotal = items.reduce((sum, i) => sum + i.quantity * i.unit_price, 0);
-    const shipping = subtotal >= 300 ? 0 : 12;
+    // Delivery is set per product in the dashboard and stored on the order, so
+    // report the figure the customer agreed to instead of recomputing one.
+    const shipping = Number(order.shipping_amount) || 0;
     const total = subtotal + shipping;
     const advancePayment = total * 0.5;
     const remaining = total - advancePayment;

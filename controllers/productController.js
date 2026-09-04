@@ -13,6 +13,23 @@ const deleteImageFiles = (imagePaths) => {
     });
 };
 
+// Remove images multer already wrote to disk when the request cannot be completed
+const cleanupUploadedFiles = (req) => {
+    if (!req.files) return;
+    req.files.forEach(file => {
+        const filePath = path.join(__dirname, '..', 'uploads', 'products', file.filename);
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
+    });
+};
+
+// Options such as 'Standard Quality' / 'Premium Quality', each with its own
+// price. The dashboard posts them as a JSON string inside FormData.
+const parseVariants = (variants) => {
+    if (variants === undefined || variants === null || variants === '') return [];
+    if (Array.isArray(variants)) return variants;
+    return JSON.parse(variants); // caller turns a throw into a 400
+};
+
 // CREATE product (with multiple images)
 const createProduct = async (req, res, next) => {
     try {
@@ -23,12 +40,25 @@ const createProduct = async (req, res, next) => {
             description,
             technical_description,
             in_stock,
-            tags
+            tags,
+            variants,
+            price_usd,
+            shipping_pkr,
+            shipping_usd
         } = req.body;
 
         // Validation
         if (!category_id || !title || !price) {
+            cleanupUploadedFiles(req);
             return res.status(400).json({ message: 'category_id, title, and price are required' });
+        }
+
+        let parsedVariants;
+        try {
+            parsedVariants = parseVariants(variants);
+        } catch (e) {
+            cleanupUploadedFiles(req);
+            return res.status(400).json({ message: 'Invalid variants format' });
         }
 
         // Handle multiple uploaded images
@@ -55,7 +85,11 @@ const createProduct = async (req, res, next) => {
             technical_description,
             in_stock,
             images: imagePaths,
-            tags: parsedTags
+            tags: parsedTags,
+            variants: parsedVariants,
+            price_usd,
+            shipping_pkr,
+            shipping_usd
         });
 
         res.status(201).json({
@@ -64,12 +98,7 @@ const createProduct = async (req, res, next) => {
         });
     } catch (err) {
         // If error, clean up uploaded files
-        if (req.files) {
-            req.files.forEach(file => {
-                const filePath = path.join(__dirname, '..', 'uploads', 'products', file.filename);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            });
-        }
+        cleanupUploadedFiles(req);
         next(err);
     }
 };
@@ -117,20 +146,29 @@ const updateProduct = async (req, res, next) => {
             technical_description,
             in_stock,
             tags,
+            variants,
+            price_usd,
+            shipping_pkr,
+            shipping_usd,
             removeImages  // optional: array of image URLs to remove
         } = req.body;
 
-        // Determine which images to keep
-        let currentImages = existingProduct.images || [];
+        let parsedVariants;
+        try {
+            parsedVariants = variants === undefined ? existingProduct.variants : parseVariants(variants);
+        } catch (e) {
+            cleanupUploadedFiles(req);
+            return res.status(400).json({ message: 'Invalid variants format' });
+        }
+
+        const originalImages = existingProduct.images || [];
+        let keptImages = originalImages;
 
         // Remove specified images if requested
         if (removeImages) {
             let toRemove = typeof removeImages === 'string' ? JSON.parse(removeImages) : removeImages;
             if (Array.isArray(toRemove)) {
-                // Delete files from disk
-                deleteImageFiles(toRemove);
-                // Filter out removed images
-                currentImages = currentImages.filter(img => !toRemove.includes(img));
+                keptImages = keptImages.filter(img => !toRemove.includes(img));
             }
         }
 
@@ -140,7 +178,12 @@ const updateProduct = async (req, res, next) => {
             newImages = req.files.map(file => `/uploads/products/${file.filename}`);
         }
 
-        const finalImages = [...currentImages, ...newImages];
+        // Uploading new images replaces the existing set - which is exactly what
+        // the dashboard tells the admin will happen. Without this they were
+        // appended instead, so the product kept growing an image list nobody asked
+        // for and the old files stayed on disk forever.
+        const finalImages = newImages.length ? newImages : keptImages;
+        const discardedImages = originalImages.filter(img => !finalImages.includes(img));
 
         // Parse tags
         let parsedTags = existingProduct.tags;
@@ -160,8 +203,17 @@ const updateProduct = async (req, res, next) => {
             technical_description,
             in_stock,
             images: finalImages,
-            tags: parsedTags
+            tags: parsedTags,
+            variants: parsedVariants,
+            // an update that omits a money field leaves it as it was
+            price_usd: price_usd !== undefined ? price_usd : existingProduct.price_usd,
+            shipping_pkr: shipping_pkr !== undefined ? shipping_pkr : existingProduct.shipping_pkr,
+            shipping_usd: shipping_usd !== undefined ? shipping_usd : existingProduct.shipping_usd
         });
+
+        // Only once the row is safely updated: deleting first would leave the
+        // product pointing at files that no longer exist if the update failed.
+        deleteImageFiles(discardedImages);
 
         res.json({
             message: 'Product updated successfully',
@@ -169,12 +221,7 @@ const updateProduct = async (req, res, next) => {
         });
     } catch (err) {
         // Clean up newly uploaded files if error occurs
-        if (req.files) {
-            req.files.forEach(file => {
-                const filePath = path.join(__dirname, '..', 'uploads', 'products', file.filename);
-                if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
-            });
-        }
+        cleanupUploadedFiles(req);
         next(err);
     }
 };

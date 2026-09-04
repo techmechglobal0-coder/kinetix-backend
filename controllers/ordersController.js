@@ -4,7 +4,7 @@ const OrderController = {
     // CREATE
     async createOrder(req, res) {
         try {
-            const { name, address, phone, city, postal_code, email, items } = req.body; // ✅ added email
+            const { name, address, phone, city, postal_code, email, items, shipping_amount } = req.body;
             let orderItems;
             try {
                 orderItems = typeof items === 'string' ? JSON.parse(items) : items;
@@ -15,7 +15,7 @@ const OrderController = {
             const paymentPath = req.file ? req.file.path : null;
 
             const orderId = await OrderModel.createOrder(
-                { name, address, phone, city, postal_code, email }, // ✅ pass email
+                { name, address, phone, city, postal_code, email, shipping_amount },
                 orderItems,
                 paymentPath
             );

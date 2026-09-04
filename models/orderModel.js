@@ -7,12 +7,15 @@ const OrderModel = {
         try {
             await connection.beginTransaction();
 
-            const { name, address, phone, city, postal_code, email } = orderData; // ✅ added email
+            const { name, address, phone, city, postal_code, email, shipping_amount } = orderData;
+            // Delivery is charged per product, so store what the customer was
+            // shown rather than recomputing it later from the items alone.
+            const shipping = Number.isFinite(Number(shipping_amount)) ? Number(shipping_amount) : 0;
             const [orderResult] = await connection.query(
                 `INSERT INTO orders 
-            (name, address, phone, city, postal_code, email, payment_screen_short, order_complete)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
-                [name, address, phone, city, postal_code, email, paymentPath, 0]
+            (name, address, phone, city, postal_code, email, shipping_amount, payment_screen_short, order_complete)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [name, address, phone, city, postal_code, email, shipping, paymentPath, 0]
             );
             const orderId = orderResult.insertId;
 
