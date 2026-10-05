@@ -21,7 +21,7 @@ const login = async (req, res, next) => {
         }
         // Generate JWT
         const token = jwt.sign(
-            { id: user.id, username: user.username || user.email },
+            { id: user.id, username: user.user_name },
             process.env.JWT_SECRET,
             { expiresIn: process.env.JWT_EXPIRES_IN || '1d' }
         );
@@ -38,9 +38,11 @@ const login = async (req, res, next) => {
     }
 };
 const register = async (req, res, next) => {
-    console.log(req.body);
     try {
         const { username, password } = req.body;
+        if (!username || !password) {
+            return res.status(400).json({ message: 'Username and password are required' });
+        }
         const hashedPassword = await bcrypt.hash(password, 10);
         const newUser = await UserModel.create(username, hashedPassword);
         if (newUser)

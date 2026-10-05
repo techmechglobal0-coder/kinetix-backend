@@ -6,7 +6,7 @@ const { login } = require('../controllers/adminController');
 const { register } = require('../controllers/adminController');
 const dashboardController = require('../controllers/dashboardController');
 router.post('/login', login);
-router.post('/register', register);
+router.post('/register', authenticateToken, register);
 router.get('/total-orders',authenticateToken,dashboardController.getTotalOrders);
 router.get('/completed-orders',authenticateToken, dashboardController.getCompletedOrders);
 router.get('/pending-orders',authenticateToken, dashboardController.getPendingOrders);

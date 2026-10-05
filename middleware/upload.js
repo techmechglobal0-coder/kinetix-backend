@@ -25,7 +25,9 @@ const fileFilter = (req, file, cb) => {
     if (mimetype && extname) {
         cb(null, true);
     } else {
-        cb(new Error('Only image files (jpeg, jpg, png, gif, webp) are allowed'), false);
+        const err = new Error('Only image files (jpeg, jpg, png, gif, webp) are allowed');
+        err.status = 400;
+        cb(err, false);
     }
 };
 

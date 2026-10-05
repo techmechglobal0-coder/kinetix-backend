@@ -24,7 +24,9 @@ const fileFilter = (req, file, cb) => {
     if (mimetype && extname) {
         cb(null, true);
     } else {
-        cb(new Error('Only images are allowed'), false);
+        const err = new Error('Only images are allowed');
+        err.status = 400;
+        cb(err, false);
     }
 };
 

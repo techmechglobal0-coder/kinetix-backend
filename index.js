@@ -6,7 +6,7 @@ const PORT = process.env.PORT || 5000;
 
 // ─── 1. CORS MIDDLEWARE (Manual – no external package needed) ──
 app.use((req, res, next) => {
-  const allowedOrigins = ['https://kinetixpk.com', 'http://localhost:3000'];
+  const allowedOrigins = ['https://kinetixpk.com', 'https://www.kinetixpk.com', 'http://localhost:3000'];
   const origin = req.headers.origin;
   
   if (allowedOrigins.includes(origin)) {
@@ -57,8 +57,13 @@ app.get('/api/test-cors', (req, res) => {
 
 // ─── 5. ERROR HANDLER ────────────────────────────────
 app.use((err, req, res, next) => {
-  console.error('Unhandled error:', err.message);
   if (res.headersSent) return next(err);
+  // Bad uploads (wrong file type, file too large, too many files) are the
+  // client's mistake, not a server crash - report them as 400 with the reason.
+  if (err.status === 400 || err.name === 'MulterError') {
+    return res.status(400).json({ message: err.message });
+  }
+  console.error('Unhandled error:', err.message);
   res.status(500).json({ message: 'Internal server error' });
 });
 
