@@ -164,10 +164,43 @@ const OrderModel = {
         return { ...orders[0], items };
     },
 
-    // Delete order (items cascade)
+    // Delete an order, its items, then its payment screenshot from disk.
+    // Items are removed explicitly so nothing is left behind even where the
+    // foreign key has no ON DELETE CASCADE.
     async deleteOrder(orderId) {
-        const [result] = await db.query(`DELETE FROM orders WHERE id = ?`, [orderId]);
-        return result.affectedRows > 0;
+        const connection = await db.getConnection();
+        let paymentPath = null;
+        try {
+            await connection.beginTransaction();
+            const [rows] = await connection.query(`SELECT payment_screen_short FROM orders WHERE id = ?`, [orderId]);
+            if (rows.length === 0) {
+                await connection.rollback();
+                return false;
+            }
+            paymentPath = rows[0].payment_screen_short;
+            await connection.query(`DELETE FROM order_items WHERE order_id = ?`, [orderId]);
+            await connection.query(`DELETE FROM orders WHERE id = ?`, [orderId]);
+            await connection.commit();
+        } catch (err) {
+            await connection.rollback();
+            throw err;
+        } finally {
+            connection.release();
+        }
+
+        // The file goes only once the row is gone. Multer stores the path with
+        // the OS separator, and the prefix guard keeps a tampered value from
+        // reaching files outside the payments folder.
+        if (typeof paymentPath === 'string') {
+            const fs = require('fs');
+            const path = require('path');
+            const relative = paymentPath.replace(/\\/g, '/');
+            if (relative.startsWith('uploads/payments/') && !relative.includes('..')) {
+                const fullPath = path.join(__dirname, '..', relative);
+                fs.promises.unlink(fullPath).catch(() => {});
+            }
+        }
+        return true;
     },
 
     // Mark order as complete
