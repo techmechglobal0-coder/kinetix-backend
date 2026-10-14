@@ -150,7 +150,8 @@ const updateProduct = async (req, res, next) => {
             price_usd,
             shipping_pkr,
             shipping_usd,
-            removeImages  // optional: array of image URLs to remove
+            removeImages,  // optional: array of image URLs to remove
+            image_order    // optional: the full final image list, see below
         } = req.body;
 
         let parsedVariants;
@@ -178,11 +179,35 @@ const updateProduct = async (req, res, next) => {
             newImages = req.files.map(file => `/uploads/products/${file.filename}`);
         }
 
-        // Uploading new images replaces the existing set - which is exactly what
-        // the dashboard tells the admin will happen. Without this they were
-        // appended instead, so the product kept growing an image list nobody asked
-        // for and the old files stayed on disk forever.
-        const finalImages = newImages.length ? newImages : keptImages;
+        let finalImages;
+        if (image_order !== undefined) {
+            // The dashboard's image manager sends the whole list in display
+            // order: an existing image by its path, a new upload as "new:<n>"
+            // pointing at the n-th uploaded file. Anything left out is removed.
+            // The first entry is the product's banner image.
+            let order;
+            try {
+                order = typeof image_order === 'string' ? JSON.parse(image_order) : image_order;
+                if (!Array.isArray(order)) throw new Error();
+            } catch (e) {
+                cleanupUploadedFiles(req);
+                return res.status(400).json({ message: 'Invalid image_order format' });
+            }
+            finalImages = [];
+            for (const entry of order) {
+                const match = /^new:(\d+)$/.exec(String(entry));
+                const image = match ? newImages[Number(match[1])] : entry;
+                // Only images this product already owns or just uploaded are
+                // accepted, so a request cannot point a product at any file.
+                const allowed = match ? Boolean(image) : originalImages.includes(image);
+                if (allowed && !finalImages.includes(image)) finalImages.push(image);
+            }
+            // Uploads the order never referenced would sit on disk unused
+            deleteImageFiles(newImages.filter(img => !finalImages.includes(img)));
+        } else {
+            // Older clients: uploading new images replaces the existing set.
+            finalImages = newImages.length ? newImages : keptImages;
+        }
         const discardedImages = originalImages.filter(img => !finalImages.includes(img));
 
         // Parse tags

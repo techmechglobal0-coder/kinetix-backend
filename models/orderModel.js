@@ -1,21 +1,57 @@
 const db = require('../db');
+const CouponModel = require('./couponModel');
+
+// Thrown when a coupon turns out to be unusable at the moment the order is
+// written, so the controller can answer 400 instead of 500.
+class CouponError extends Error {}
+
+// Delivery inside Lahore is free. Checkout shows the same rule, but it is
+// enforced here so the stored total never depends on what the browser sent.
+const FREE_SHIPPING_CITIES = ['lahore'];
+const isFreeShippingCity = (city) => FREE_SHIPPING_CITIES.includes(String(city || '').trim().toLowerCase());
 
 const OrderModel = {
+    CouponError,
+    isFreeShippingCity,
+
     // Create order and items (transaction)
     async createOrder(orderData, items, paymentPath) {
         const connection = await db.getConnection();
         try {
             await connection.beginTransaction();
 
-            const { name, address, phone, city, postal_code, email, shipping_amount } = orderData;
+            const { name, address, phone, city, postal_code, email, shipping_amount, coupon_code } = orderData;
             // Delivery is charged per product, so store what the customer was
             // shown rather than recomputing it later from the items alone.
-            const shipping = Number.isFinite(Number(shipping_amount)) ? Number(shipping_amount) : 0;
+            let shipping = Number.isFinite(Number(shipping_amount)) ? Number(shipping_amount) : 0;
+            if (isFreeShippingCity(city)) shipping = 0;
+
+            // The discount is worked out again here rather than trusted from the
+            // client. FOR UPDATE holds the coupon row until commit so a limited
+            // coupon cannot be spent twice by two orders at once.
+            let couponCode = null;
+            let discount = 0;
+            if (coupon_code && String(coupon_code).trim()) {
+                const [rows] = await connection.query(
+                    'SELECT * FROM coupons WHERE code = ? FOR UPDATE',
+                    [CouponModel.normalizeCode(coupon_code)]
+                );
+                const coupon = CouponModel.mapRow(rows[0]);
+                const subtotal = items.reduce((sum, item) => sum + Number(item.quantity || 0) * Number(item.unit_price || 0), 0);
+                const result = CouponModel.evaluate(coupon, subtotal);
+                if (result.error) throw new CouponError(result.error);
+                if (!(await CouponModel.consume(coupon.id, connection))) {
+                    throw new CouponError('This coupon has reached its usage limit');
+                }
+                couponCode = coupon.code;
+                discount = result.discount;
+            }
+
             const [orderResult] = await connection.query(
-                `INSERT INTO orders 
-            (name, address, phone, city, postal_code, email, shipping_amount, payment_screen_short, order_complete)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-                [name, address, phone, city, postal_code, email, shipping, paymentPath, 0]
+                `INSERT INTO orders
+            (name, address, phone, city, postal_code, email, shipping_amount, coupon_code, discount_amount, payment_screen_short, order_complete)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+                [name, address, phone, city, postal_code, email, shipping, couponCode, discount, paymentPath, 0]
             );
             const orderId = orderResult.insertId;
 

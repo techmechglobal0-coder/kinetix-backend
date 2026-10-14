@@ -12,4 +12,25 @@ async function create(username, password) {
     const [rows] = await pool.query('SELECT id, user_name FROM admin_login WHERE id = ?', [result.insertId]);
     return rows[0];
 }
-module.exports = { findByUsername, create };
+// Never select the password hash for listing
+async function findAll() {
+    const [rows] = await pool.query('SELECT id, user_name FROM admin_login ORDER BY id ASC');
+    return rows;
+}
+async function findById(id) {
+    const [rows] = await pool.query('SELECT id, user_name FROM admin_login WHERE id = ?', [id]);
+    return rows[0];
+}
+async function count() {
+    const [rows] = await pool.query('SELECT COUNT(*) AS count FROM admin_login');
+    return rows[0].count;
+}
+async function updatePassword(id, hashedPassword) {
+    const [result] = await pool.query('UPDATE admin_login SET password = ? WHERE id = ?', [hashedPassword, id]);
+    return result.affectedRows > 0;
+}
+async function remove(id) {
+    const [result] = await pool.query('DELETE FROM admin_login WHERE id = ?', [id]);
+    return result.affectedRows > 0;
+}
+module.exports = { findByUsername, create, findAll, findById, count, updatePassword, remove };

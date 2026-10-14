@@ -36,6 +36,7 @@ const contactRoutes = require('./routes/contactRoutes');
 const bulkOrderRoutes = require('./routes/bulkOrderRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const geoRoutes = require('./routes/geoRoutes');
+const couponRoutes = require('./routes/couponRoutes');
 
 app.use('/api/auth', adminRoutes);
 app.use('/api/categories', categoryRoutes);
@@ -44,6 +45,7 @@ app.use('/api/contacts', contactRoutes);
 app.use('/api/bulk-orders', bulkOrderRoutes);
 app.use('/api/orders', orderRoutes);
 app.use('/api/geo', geoRoutes);
+app.use('/api/coupons', couponRoutes);
 
 // ─── 3. HEALTH CHECK ──────────────────────────────────
 app.get('/', (req, res) => {
